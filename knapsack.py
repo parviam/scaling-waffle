@@ -1,21 +1,42 @@
-#parv mahajan: implementation of genetic algorithms to knapsack
-#UNFINISHED
+#parv mahajan: implementation of genetic algorithms to knapsack problem
+#v1 1/30/2022
 
 import random
 import math
 
-#the items that go in the knapsack
+#inputs
+numberOfItems = 100
+crossoverRate = 0.5
+mutationRate = 0.5
+numberOfGenerations = 1000
+membersPerGeneration = 500
+rucksackLength = 100
+rucksackWidth = 75
+rucksackDepth = 30
 
-numberOfItems = 5000
 
 class Item:
     def __init__(self):
-        self.size = math.floor(random.random() * 20) + 1 #b/w (1, 20)
-        self.value = math.floor(random.random() * 50) + 1 #b/w (1, 50)
+        random.seed()
+        self.size = math.floor(random.random() * 50) + 1 #b/w [1, 50)
+        random.seed(self.size)
+        self.value = math.floor(random.random() * 500) + 1 #b/w [1, 50)
+        random.seed(self.value)
+        self.robustness = random.random() + 1 #b/w [1, 2)
+        random.seed(self.robustness)
+        self.length = random.random()*10 #b/w [0, 10)
+        random.seed(self.length)
+        self.width = random.random()*10 #b/w [0, 10)
+        random.seed(self.width)
+        self.depth = random.random()*10 #b/w [0, 10)
+        random.seed()
+        self.fighting = random.randint(0, 50)/self.value
     def toString(self):
-        return ("Size ", self.size, " Value ", self.value)
+        return ("Size ", self.size, " Value ", self.value, "Robustness", self.robustness, "Length", self.length, "Width", self.width, "Depth", self.depth, "Fighting", self.fighting)
 
-items = [Item()]*numberOfItems #list of items
+items = [] #list of items
+for x in range(numberOfItems):
+    items.append(Item())
 
 #each member of a generation ==> just a list
 class Member:
@@ -33,14 +54,32 @@ def fitness(child):
     #check size
     totalSize = 0
     totalValue = 0
+    totalLength = 0
+    totalDepth = 0
+    totalWidth = 0
+    time = 0
+    totalFighting = 0
     for x in child.bits:
         if x == True:
-            totalSize += items[x].size
-            totalValue += items[x].value
-    if totalSize > 100000:      #number is abritrary here
+            if items[x].robustness > 1.5:
+                totalFighting += items[x].fighting
+                if totalWidth < rucksackWidth and totalLength < rucksackLength and totalDepth < rucksackDepth:
+                    totalLength += items[x].length
+                    totalWidth += items[x].width
+                    totalDepth += items[x].depth
+                    totalSize += items[x].size
+                    totalValue += items[x].value
+                else:
+                    time += math.floor((items[x].length*items[x].depth*items[x].width)/items[x].value)
+            else:
+                totalValue -= items[x].value
+            
+    if totalSize > 50*numberOfItems/4:      #number 4 is abritrary here
         return 0
+    if totalFighting > 1:
+        totalValue += 100*totalFighting
     #return value if not disqualified
-    return totalValue
+    return max(0, math.floor(totalValue - time))
 
 #holds one generation, does tournament, crossover, etc.
 class Generation:
@@ -82,41 +121,57 @@ def newGen(oldGen):
             rand -= oldGen.fit[x]
             if rand <= 0:
                 newMembers.append(oldGen.gen[x])
-                newFitness.append(oldGen.fit[x])
+                newFitness.append(fitness(oldGen.gen[x]))
                 break
     return Generation(len(oldGen.gen), 0, newMembers, newFitness)
 
 #conducts mutation on a generation according to a set chance
 def mutation(aGen, per):
-        for x in aGen.gen:
-                for y in x.bits:
-                        rand = random.random()
+        mutations = 0
+        for x in range(len(aGen.gen)):
+                rand = random.random()
+                for y in aGen.gen[x].bits:
                         if rand < per:
-                                x.bits[y] = not x.bits[y]
+                                aGen.gen[x].bits[y] = not aGen.gen[x].bits[y]
+                                mutations += 1
+                aGen.fit[x] = fitness(aGen.gen[x])
         return aGen
 
-def crossover(aGen, per, l):
+#crossover on a generation according to a set chance, of l length
+def crossover(aGen, per, le):
         newGen = Generation(len(aGen.gen), 0, aGen.gen, aGen.fit)
         for x in range(len(aGen.gen)):
                 rand = random.random()
                 if per > rand:
-                        randA = random.randint(0, numberOfItems - l - 1)
-                        temp = aGen.gen[x].bits[randA:randA + l]
-                        randB = random.randint(0, numberOfItems - l - 1)
-                        aGen.gen[x].bits[randA:randA + l] = newGen.gen[x].bits[randB:randB + l]
-                        newGen.gen[x].bits[randB:randB + l] = temp
+                        randA = random.randint(0, numberOfItems - 1 - le)
+                        temp = newGen.gen[x].bits[randA: randA + le]
+                        randB = random.randint(0, numberOfItems - 1 - le)
+                        newGen.gen[x].bits[randA:randA + le] = newGen.gen[x-1].bits[randB:randB + le]
+                        newGen.gen[x-1].bits[randB:randB + le] = temp
+                aGen.fit[x] = fitness(aGen.gen[x]
+                                      )
         return newGen
 
 #runs the genetic algortithm for a number of generations
-def evolve(generations):
-        g = Generation(500, 1, [], [])
+def evolve(generations, m):
+        g = Generation(m, 1, [], [])
+        print("Avg value: $", g.avgFitness(), "Highest Value: $", g.highestFitness())
+        fitnesses = []
         for x in range(generations):
-                g = newGen(g)
-                g = crossover(g, 0.5, 5)
-                g = mutation(g, 0.05)
-                print(g.avgFitness())
-                
-evolve(1000)                
+                g = newGen(g) #roullete wheel
+                g = crossover(g, crossoverRate, math.floor(numberOfItems/2)) #crossover with a random length upto 50% of the total length
+                g = mutation(g, mutationRate) #mutation
+                uncertainty = 1
+                if g.avgFitness() > 0:
+                    uncertainty = (g.highestFitness()-g.avgFitness())/g.avgFitness()
+                print("Avg value: $", g.avgFitness(), "Uncertainty: ", uncertainty, "Highest Value: $", g.highestFitness())
+                fitnesses.append(g.avgFitness())
+                if uncertainty < 0.00001 and x > 100:
+                                 break
+        print(g.highestFitness())
+
+evolve(numberOfGenerations, membersPerGeneration)
+
         
 
 
