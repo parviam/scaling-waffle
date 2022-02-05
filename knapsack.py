@@ -148,12 +148,12 @@ def crossover(aGen, per, le):
                         randB = random.randint(0, numberOfItems - 1 - le)
                         newGen.gen[x].bits[randA:randA + le] = newGen.gen[x-1].bits[randB:randB + le]
                         newGen.gen[x-1].bits[randB:randB + le] = temp
-                aGen.fit[x] = fitness(aGen.gen[x]
-                                      )
+                aGen.fit[x] = fitness(aGen.gen[x])
         return newGen
 
 #runs the genetic algortithm for a number of generations
 def evolve(generations, m):
+        global mutationRate
         g = Generation(m, 1, [], [])
         print("Avg value: $", g.avgFitness(), "Highest Value: $", g.highestFitness())
         fitnesses = []
@@ -166,13 +166,17 @@ def evolve(generations, m):
                     uncertainty = (g.highestFitness()-g.avgFitness())/g.avgFitness()
                 print("Avg value: $", g.avgFitness(), "Uncertainty: ", uncertainty, "Highest Value: $", g.highestFitness())
                 fitnesses.append(g.avgFitness())
-                if uncertainty < 0.00001 and x > 100:
+                if mutationRate < 0.00001 and x > 50 and stopEvolution(fitnesses):
                                  break
+                mutationRate *= (uncertainty + 0.9)
         print(g.highestFitness())
 
 evolve(numberOfGenerations, membersPerGeneration)
 
-        
+def stopEvolution(fits):
+    if(fits[0] > fits[-1]):
+        return True
+    return False
 
 
     
